@@ -80,8 +80,8 @@ def encode_domain(kind, value):
 
 def encode_site(code, domains):
     body = field_string(1, code.upper())
-    for domain in domains:
-        body += field_bytes(2, encode_domain(2, domain))
+    for kind, domain in domains:
+        body += field_bytes(2, encode_domain(kind, domain))
     return body
 
 
@@ -121,6 +121,155 @@ def parse_cidrs(text):
     return networks
 
 
+def read_varint(buf, index):
+    number = 0
+    shift = 0
+    while True:
+        byte = buf[index]
+        index += 1
+        number |= (byte & 0x7F) << shift
+        if not byte & 0x80:
+            return number, index
+        shift += 7
+
+
+def parse_fields(buf):
+    index = 0
+    fields = []
+    while index < len(buf):
+        key, index = read_varint(buf, index)
+        wire = key & 7
+        field = key >> 3
+        if wire == 0:
+            value, index = read_varint(buf, index)
+        elif wire == 2:
+            length, index = read_varint(buf, index)
+            value = buf[index : index + length]
+            index += length
+        elif wire == 5:
+            value = buf[index : index + 4]
+            index += 4
+        elif wire == 1:
+            value = buf[index : index + 8]
+            index += 8
+        else:
+            raise ValueError(f"unsupported protobuf wire type {wire}")
+        fields.append((field, wire, value))
+    return fields
+
+
+def cached_dat(name, url):
+    path = DATA / "cache" / name
+    if path.exists() and path.stat().st_size > 1000:
+        return path.read_bytes()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    request = urllib.request.Request(url, headers={"User-Agent": "starlit-routing"})
+    with urllib.request.urlopen(request, timeout=90) as response:
+        data = response.read()
+    path.write_bytes(data)
+    return data
+
+
+def load_geosite(names):
+    picked = {name: [] for name in names}
+    for filename, url in (
+        (
+            "loyalsoldier-geosite.dat",
+            "https://gcore.jsdelivr.net/gh/Loyalsoldier/v2ray-rules-dat@release/geosite.dat",
+        ),
+        (
+            "roscom-geosite.dat",
+            "https://gcore.jsdelivr.net/gh/hydraponique/roscomvpn-geosite@release/geosite.dat",
+        ),
+    ):
+        for field, wire, value in parse_fields(cached_dat(filename, url)):
+            if field != 1 or wire != 2:
+                continue
+            code = ""
+            domains = []
+            for inner, inner_wire, inner_value in parse_fields(value):
+                if inner == 1 and inner_wire == 2:
+                    code = inner_value.decode("utf-8", "replace").upper()
+                elif inner == 2 and inner_wire == 2:
+                    kind = 2
+                    domain = ""
+                    for part, part_wire, part_value in parse_fields(inner_value):
+                        if part == 1 and part_wire == 0:
+                            kind = part_value
+                        elif part == 2 and part_wire == 2:
+                            domain = part_value.decode("utf-8", "replace").strip().lower()
+                    if domain:
+                        domains.append((kind, domain))
+            if code in picked:
+                picked[code].extend(domains)
+    return picked
+
+
+def decode_cidr(blob):
+    address = b""
+    prefix = None
+    for field, wire, value in parse_fields(blob):
+        if field == 1 and wire == 2:
+            address = value
+        elif field == 2 and wire == 0:
+            prefix = value
+    if prefix is None or len(address) not in (4, 16):
+        return None
+    text = ".".join(str(piece) for piece in address) if len(address) == 4 else str(ipaddress.IPv6Address(address))
+    return ipaddress.ip_network(f"{text}/{prefix}", strict=False)
+
+
+def load_geoip(names):
+    picked = {name: [] for name in names}
+    for filename, url in (
+        (
+            "loyalsoldier-geoip.dat",
+            "https://gcore.jsdelivr.net/gh/Loyalsoldier/v2ray-rules-dat@release/geoip.dat",
+        ),
+        (
+            "roscom-geoip.dat",
+            "https://gcore.jsdelivr.net/gh/hydraponique/roscomvpn-geoip@release/geoip.dat",
+        ),
+    ):
+        for field, wire, value in parse_fields(cached_dat(filename, url)):
+            if field != 1 or wire != 2:
+                continue
+            code = ""
+            networks = []
+            for inner, inner_wire, inner_value in parse_fields(value):
+                if inner == 1 and inner_wire == 2:
+                    code = inner_value.decode("utf-8", "replace").upper()
+                elif inner == 2 and inner_wire == 2:
+                    network = decode_cidr(inner_value)
+                    if network is not None:
+                        networks.append(network)
+            if code in picked:
+                picked[code].extend(networks)
+    return picked
+
+
+def unique_domains(items):
+    seen = set()
+    result = []
+    for kind, domain in items:
+        key = (kind, domain)
+        if domain and key not in seen:
+            seen.add(key)
+            result.append(key)
+    return result
+
+
+def unique_networks(items):
+    seen = set()
+    result = []
+    for network in items:
+        key = (network.version, int(network.network_address), network.prefixlen)
+        if key not in seen:
+            seen.add(key)
+            result.append(network)
+    return result
+
+
 def main():
     DATA.mkdir(exist_ok=True)
     RELEASE.mkdir(exist_ok=True)
@@ -129,41 +278,90 @@ def main():
     )
     (DATA / "category-gov-ru.txt").write_text(gov_text, encoding="utf-8")
 
-    shops = read_domains(DATA / "shops.txt")
-    direct = ["ru", "su", "xn--p1ai", *shops]
+    imported = load_geosite(
+        [
+            "OZON",
+            "WILDBERRIES",
+            "CATEGORY-BANK-RU",
+            "CATEGORY-ECOMMERCE-RU",
+            "CATEGORY-RETAIL-RU",
+            "CATEGORY-GOV-RU",
+            "SBER",
+            "SBERBANK",
+            "TBANK-RU",
+            "TLD-RU",
+            "CATEGORY-RU",
+            "YANDEX",
+            "WHITELIST",
+            "PRIVATE",
+        ]
+    )
+    shops = [(2, domain) for domain in read_domains(DATA / "shops.txt")]
+    extras = []
     for name in ("direct-extra.txt", "category-gov-ru.txt"):
-        direct.extend(read_domains(DATA / name))
-    direct = unique(direct)
+        extras.extend((2, domain) for domain in read_domains(DATA / name))
+    zones = [(1, r".*\.ru$"), (1, r".*\.su$"), (1, r".*\.xn--p1ai$"), (2, "ru"), (2, "su"), (2, "xn--p1ai")]
+    direct = unique_domains(
+        [
+            *zones,
+            *shops,
+            *extras,
+            *imported["CATEGORY-RU"],
+            *imported["TLD-RU"],
+            *imported["OZON"],
+            *imported["WILDBERRIES"],
+            *imported["CATEGORY-BANK-RU"],
+            *imported["CATEGORY-ECOMMERCE-RU"],
+            *imported["CATEGORY-RETAIL-RU"],
+            *imported["CATEGORY-GOV-RU"],
+            *imported["SBER"],
+            *imported["SBERBANK"],
+            *imported["TBANK-RU"],
+            *imported["YANDEX"],
+            *imported["WHITELIST"],
+        ]
+    )
+    protected = {domain for kind, domain in direct if kind != 1 and "." in domain}
 
     def covered(domain, roots):
         return any(domain == root or domain.endswith("." + root) for root in roots)
 
     ads_text = download("https://pgl.yoyo.org/adservers/serverlist.php?hostformat=hosts&showintro=0")
     (DATA / "ads.txt").write_text(ads_text, encoding="utf-8")
-    ads = unique(parse_domain_lines(ads_text) + read_domains(DATA / "ads-extra.txt"))
-    ads = [domain for domain in ads if not covered(domain, shops)]
-    direct = [domain for domain in direct if domain not in set(read_domains(DATA / "ads-extra.txt"))]
-    (DATA / "direct-domains.txt").write_text("\n".join(direct) + "\n", encoding="utf-8")
-    (DATA / "direct-domains.txt").write_text("\n".join(direct) + "\n", encoding="utf-8")
+    ads = [(2, domain) for domain in unique(parse_domain_lines(ads_text) + read_domains(DATA / "ads-extra.txt"))]
+    ads = [(kind, domain) for kind, domain in ads if not covered(domain, protected)]
+    (DATA / "direct-domains.txt").write_text("\n".join(domain for _kind, domain in direct) + "\n", encoding="utf-8")
 
-    def pick(words):
-        return [domain for domain in direct if any(word in domain for word in words)]
+    def typed(names):
+        return [(2, domain) for domain in names]
 
     categories = [
         ("DIRECT", direct),
-        ("RU", ["ru", "su", "xn--p1ai"]),
+        ("RU", zones),
+        ("TLD-RU", unique_domains([*zones, *imported["TLD-RU"]])),
         ("CATEGORY-RU", direct),
-        ("OZON", pick(("ozon", "o3.ru", "o3t"))),
-        ("WILDBERRIES", pick(("wildber", "wb.", "wbstatic", "wbbasket", "wbcontent", "paywb", "wibes", "geobasket", "rwb"))),
-        ("RU-BANKS", pick(("sber", "tbank", "tinkoff", "t-bank", "vtb", "alfa", "gazprom", "nspk", "mironline", "yoomoney", "qiwi", "appsflyer", "adjust"))),
+        ("OZON", unique_domains([*imported["OZON"], *shops])),
+        ("WILDBERRIES", unique_domains([*imported["WILDBERRIES"], *shops])),
+        ("CATEGORY-BANK-RU", unique_domains([*imported["CATEGORY-BANK-RU"], *imported["SBER"], *imported["SBERBANK"], *imported["TBANK-RU"], *shops])),
+        ("RU-BANKS", unique_domains([*imported["CATEGORY-BANK-RU"], *imported["SBER"], *imported["SBERBANK"], *imported["TBANK-RU"], *shops])),
+        ("CATEGORY-ECOMMERCE-RU", unique_domains([*imported["CATEGORY-ECOMMERCE-RU"], *imported["OZON"], *imported["WILDBERRIES"], *shops])),
+        ("CATEGORY-RETAIL-RU", unique_domains([*imported["CATEGORY-RETAIL-RU"], *shops])),
+        ("CATEGORY-GOV-RU", unique_domains(imported["CATEGORY-GOV-RU"])),
+        ("SBER", unique_domains([*imported["SBER"], *imported["SBERBANK"]])),
+        ("TBANK-RU", unique_domains(imported["TBANK-RU"])),
+        ("YANDEX", unique_domains(imported["YANDEX"])),
+        ("WHITELIST", unique_domains(imported["WHITELIST"])),
         ("ADS", ads),
-        ("PRIVATE", read_domains(DATA / "private.txt")),
-        ("YOUTUBE", read_domains(DATA / "youtube.txt")),
-        ("GOOGLE-PLAY", read_domains(DATA / "google-play.txt")),
-        ("GOOGLE-DEEPMIND", read_domains(DATA / "google-deepmind.txt")),
+        ("PRIVATE", unique_domains([*typed(read_domains(DATA / "private.txt")), *imported["PRIVATE"]])),
+        ("YOUTUBE", typed(read_domains(DATA / "youtube.txt"))),
+        ("GOOGLE-PLAY", typed(read_domains(DATA / "google-play.txt"))),
+        ("GOOGLE-DEEPMIND", typed(read_domains(DATA / "google-deepmind.txt"))),
     ]
     geosite = encode_geosite(categories)
     (RELEASE / "geosite.dat").write_bytes(geosite)
+    wanted = ("ozon.ru", "wildberries.ru", "wb.ru", "sberbank.ru", "tbank.ru", "nspk.ru")
+    have = {domain for _kind, domain in direct}
+    print("missing", [domain for domain in wanted if domain not in have])
 
     ip_dir = DATA / "ip"
     ip_dir.mkdir(exist_ok=True)
@@ -178,7 +376,19 @@ def main():
         text = download(url)
         (ip_dir / name).write_text(text, encoding="utf-8")
         direct_ips.extend(parse_cidrs(text))
-    private_ips = parse_cidrs((DATA / "private-ip.txt").read_text(encoding="utf-8"))
+    imported_ips = load_geoip(["RU", "BY", "DIRECT", "WHITELIST", "PRIVATE"])
+    direct_ips = unique_networks(
+        [
+            *direct_ips,
+            *imported_ips["RU"],
+            *imported_ips["BY"],
+            *imported_ips["DIRECT"],
+            *imported_ips["WHITELIST"],
+        ]
+    )
+    private_ips = unique_networks(
+        parse_cidrs((DATA / "private-ip.txt").read_text(encoding="utf-8")) + imported_ips["PRIVATE"]
+    )
     geoip = encode_geoip([("DIRECT", direct_ips), ("RU", direct_ips), ("PRIVATE", private_ips)])
     (RELEASE / "geoip.dat").write_bytes(geoip)
     print("geosite", len(geosite), "direct", len(direct), "ads", len(ads))
