@@ -36,13 +36,23 @@ def field_varint(field_number, number):
 
 
 def read_domains(path):
+    return parse_domain_lines(path.read_text(encoding="utf-8"))
+
+
+def parse_domain_lines(text):
     found = []
-    for line in path.read_text(encoding="utf-8").splitlines():
+    for line in text.splitlines():
         line = line.split("#", 1)[0].strip().lower()
         if line.startswith("domain:"):
             line = line[len("domain:") :].strip()
-        if not line or line.startswith("include:") or " " in line or "/" in line:
+        if line.startswith(("0.0.0.0", "127.0.0.1")):
+            parts = line.split()
+            if len(parts) >= 2:
+                line = parts[1]
+        if not line or line.startswith(("include:", "!", "||")) or " " in line or "/" in line:
             continue
+        if line.startswith("*."):
+            line = line[2:]
         found.append(line.rstrip("."))
     return found
 
@@ -125,8 +135,17 @@ def main():
     direct = unique(direct)
     (DATA / "direct-domains.txt").write_text("\n".join(direct) + "\n", encoding="utf-8")
 
+    ads_text = download("https://pgl.yoyo.org/adservers/serverlist.php?hostformat=hosts&showintro=0")
+    (DATA / "ads.txt").write_text(ads_text, encoding="utf-8")
+    ads = unique(parse_domain_lines(ads_text) + read_domains(DATA / "ads-extra.txt"))
+    direct_set = set(direct)
+    ads = [domain for domain in ads if domain not in direct_set or domain in read_domains(DATA / "ads-extra.txt")]
+    direct = [domain for domain in direct if domain not in set(read_domains(DATA / "ads-extra.txt"))]
+    (DATA / "direct-domains.txt").write_text("\n".join(direct) + "\n", encoding="utf-8")
+
     categories = [
         ("DIRECT", direct),
+        ("ADS", ads),
         ("PRIVATE", read_domains(DATA / "private.txt")),
         ("YOUTUBE", read_domains(DATA / "youtube.txt")),
         ("GOOGLE-PLAY", read_domains(DATA / "google-play.txt")),
@@ -138,8 +157,8 @@ def main():
     ip_dir = DATA / "ip"
     ip_dir.mkdir(exist_ok=True)
     sources = {
-        "ru-ipv4.txt": "https://www.ipdeny.com/ipblocks/data/countries/ru.zone",
-        "by-ipv4.txt": "https://www.ipdeny.com/ipblocks/data/countries/by.zone",
+        "ru-ipv4.txt": "https://www.ipdeny.com/ipblocks/data/aggregated/ru-aggregated.zone",
+        "by-ipv4.txt": "https://www.ipdeny.com/ipblocks/data/aggregated/by-aggregated.zone",
         "ru-ipv6.txt": "https://www.ipdeny.com/ipv6/ipaddresses/blocks/ru.zone",
         "by-ipv6.txt": "https://www.ipdeny.com/ipv6/ipaddresses/blocks/by.zone",
     }
@@ -151,7 +170,7 @@ def main():
     private_ips = parse_cidrs((DATA / "private-ip.txt").read_text(encoding="utf-8"))
     geoip = encode_geoip([("DIRECT", direct_ips), ("PRIVATE", private_ips)])
     (RELEASE / "geoip.dat").write_bytes(geoip)
-    print("geosite", len(geosite), "domains", len(direct))
+    print("geosite", len(geosite), "direct", len(direct), "ads", len(ads))
     print("geoip", len(geoip), "cidrs", len(direct_ips), "private", len(private_ips))
 
 

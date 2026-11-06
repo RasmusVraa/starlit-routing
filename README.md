@@ -7,7 +7,7 @@
 - `release/geosite.dat` — домены
 - `release/geoip.dat` — сети России, Беларуси и локальные адреса
 
-Категории geosite: `direct`, `private`, `youtube`, `google-play`, `google-deepmind`.
+Категории geosite: `direct`, `ads`, `private`, `youtube`, `google-play`, `google-deepmind`.
 
 Категории geoip: `direct`, `private`.
 
@@ -16,8 +16,8 @@
 ## CDN
 
 ```
-https://cdn.jsdelivr.net/gh/RasmusVraa/starlit-routing@v1/release/geosite.dat
-https://cdn.jsdelivr.net/gh/RasmusVraa/starlit-routing@v1/release/geoip.dat
+https://gcore.jsdelivr.net/gh/RasmusVraa/starlit-routing@v2/release/geosite.dat
+https://gcore.jsdelivr.net/gh/RasmusVraa/starlit-routing@v2/release/geoip.dat
 ```
 
 ## Сборка

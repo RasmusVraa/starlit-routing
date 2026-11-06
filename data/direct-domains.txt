@@ -160,8 +160,6 @@ zdrav10.ru
 5post.market
 abr.ru
 aclub.ru
-adfox.ru
-admetrica.ru
 aeroflot.ru
 alfa-bank.com
 alfa-bank.ru
@@ -406,7 +404,6 @@ xn--90aifd0aza.site
 xn--b1aew.xn--p1ai
 xn--d1acpjx3f.xn--p1ai
 ya.ru
-yads.tech
 yandex-bank.net
 yandex-images.clstorage.net
 yandex-team.ru
@@ -443,7 +440,6 @@ yandex.tm
 yandex.tr
 yandex.ua
 yandex.uz
-yandexadexchange.net
 yandexcloud.net
 yandexcom.net
 yandexmetrica.com
