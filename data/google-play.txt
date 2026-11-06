@@ -1,0 +1,10 @@
+google.com
+gstatic.com
+googleapis.com
+googleusercontent.com
+gvt1.com
+gvt2.com
+licenses.drm.google.com
+play.google.com
+android.clients.google.com
+play.googleapis.com

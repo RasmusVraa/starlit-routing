@@ -1,0 +1,5 @@
+deepmind.com
+deepmind.google
+gemini.google.com
+aistudio.google.com
+generativelanguage.googleapis.com

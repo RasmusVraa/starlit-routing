@@ -1,0 +1,11 @@
+localhost
+local
+localdomain
+home.arpa
+lan
+internal
+invalid
+intranet
+corp
+home
+local.arpa
