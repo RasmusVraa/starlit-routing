@@ -129,18 +129,21 @@ def main():
     )
     (DATA / "category-gov-ru.txt").write_text(gov_text, encoding="utf-8")
 
-    direct = ["ru", "su", "xn--p1ai"]
+    shops = read_domains(DATA / "shops.txt")
+    direct = ["ru", "su", "xn--p1ai", *shops]
     for name in ("direct-extra.txt", "category-gov-ru.txt"):
         direct.extend(read_domains(DATA / name))
     direct = unique(direct)
-    (DATA / "direct-domains.txt").write_text("\n".join(direct) + "\n", encoding="utf-8")
+
+    def covered(domain, roots):
+        return any(domain == root or domain.endswith("." + root) for root in roots)
 
     ads_text = download("https://pgl.yoyo.org/adservers/serverlist.php?hostformat=hosts&showintro=0")
     (DATA / "ads.txt").write_text(ads_text, encoding="utf-8")
     ads = unique(parse_domain_lines(ads_text) + read_domains(DATA / "ads-extra.txt"))
-    direct_set = set(direct)
-    ads = [domain for domain in ads if domain not in direct_set or domain in read_domains(DATA / "ads-extra.txt")]
+    ads = [domain for domain in ads if not covered(domain, shops)]
     direct = [domain for domain in direct if domain not in set(read_domains(DATA / "ads-extra.txt"))]
+    (DATA / "direct-domains.txt").write_text("\n".join(direct) + "\n", encoding="utf-8")
     (DATA / "direct-domains.txt").write_text("\n".join(direct) + "\n", encoding="utf-8")
 
     categories = [
