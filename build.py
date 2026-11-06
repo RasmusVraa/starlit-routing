@@ -146,8 +146,16 @@ def main():
     (DATA / "direct-domains.txt").write_text("\n".join(direct) + "\n", encoding="utf-8")
     (DATA / "direct-domains.txt").write_text("\n".join(direct) + "\n", encoding="utf-8")
 
+    def pick(words):
+        return [domain for domain in direct if any(word in domain for word in words)]
+
     categories = [
         ("DIRECT", direct),
+        ("RU", ["ru", "su", "xn--p1ai"]),
+        ("CATEGORY-RU", direct),
+        ("OZON", pick(("ozon", "o3.ru", "o3t"))),
+        ("WILDBERRIES", pick(("wildber", "wb.", "wbstatic", "wbbasket", "wbcontent", "paywb", "wibes", "geobasket", "rwb"))),
+        ("RU-BANKS", pick(("sber", "tbank", "tinkoff", "t-bank", "vtb", "alfa", "gazprom", "nspk", "mironline", "yoomoney", "qiwi", "appsflyer", "adjust"))),
         ("ADS", ads),
         ("PRIVATE", read_domains(DATA / "private.txt")),
         ("YOUTUBE", read_domains(DATA / "youtube.txt")),
@@ -171,7 +179,7 @@ def main():
         (ip_dir / name).write_text(text, encoding="utf-8")
         direct_ips.extend(parse_cidrs(text))
     private_ips = parse_cidrs((DATA / "private-ip.txt").read_text(encoding="utf-8"))
-    geoip = encode_geoip([("DIRECT", direct_ips), ("PRIVATE", private_ips)])
+    geoip = encode_geoip([("DIRECT", direct_ips), ("RU", direct_ips), ("PRIVATE", private_ips)])
     (RELEASE / "geoip.dat").write_bytes(geoip)
     print("geosite", len(geosite), "direct", len(direct), "ads", len(ads))
     print("geoip", len(geoip), "cidrs", len(direct_ips), "private", len(private_ips))
