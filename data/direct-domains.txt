@@ -67,6 +67,19 @@ akbars.ru
 nspk.ru
 mironline.ru
 yoomoney.ru
+yookassa.ru
+u-kassa.ru
+yamoney.ru
+money.yandex.ru
+payment.yandex.net
+payment.yandex.ru
+sdk.yookassa.ru
+api.yookassa.ru
+shop.yookassa.ru
+payouts.yookassa.ru
+deposit.yoomoney.ru
+paymentcard.yoomoney.ru
+partner.yoomoney.ru
 qiwi.com
 appsflyer.com
 appsflyersdk.com
@@ -1905,7 +1918,6 @@ centraluniversity.ru
 cu.ru
 tinkoff-edu.ru
 sbrf.ru
-yookassa.ru
 cplsb.ru
 sberspasibo.ru
 finance.ozon.ru
