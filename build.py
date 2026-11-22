@@ -294,6 +294,7 @@ def main():
             "YANDEX",
             "WHITELIST",
             "PRIVATE",
+            "GOOGLE",
         ]
     )
     shops = [(2, domain) for domain in read_domains(DATA / "shops.txt")]
@@ -354,6 +355,7 @@ def main():
         ("ADS", ads),
         ("PRIVATE", unique_domains([*typed(read_domains(DATA / "private.txt")), *imported["PRIVATE"]])),
         ("YOUTUBE", typed(read_domains(DATA / "youtube.txt"))),
+        ("GOOGLE", unique_domains([*imported["GOOGLE"], *typed(read_domains(DATA / "google.txt"))])),
         ("GOOGLE-PLAY", typed(read_domains(DATA / "google-play.txt"))),
         ("GOOGLE-DEEPMIND", typed(read_domains(DATA / "google-deepmind.txt"))),
     ]
