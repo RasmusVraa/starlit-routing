@@ -295,6 +295,7 @@ def main():
             "WHITELIST",
             "PRIVATE",
             "GOOGLE",
+            "SUPERCELL",
         ]
     )
     shops = [(2, domain) for domain in read_domains(DATA / "shops.txt")]
@@ -358,6 +359,7 @@ def main():
         ("GOOGLE", unique_domains([*imported["GOOGLE"], *typed(read_domains(DATA / "google.txt"))])),
         ("GOOGLE-PLAY", typed(read_domains(DATA / "google-play.txt"))),
         ("GOOGLE-DEEPMIND", typed(read_domains(DATA / "google-deepmind.txt"))),
+        ("SUPERCELL", unique_domains([*imported["SUPERCELL"], *typed(read_domains(DATA / "supercell.txt"))])),
     ]
     geosite = encode_geosite(categories)
     (RELEASE / "geosite.dat").write_bytes(geosite)

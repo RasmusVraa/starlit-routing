@@ -16,8 +16,8 @@
 ## CDN
 
 ```
-https://gcore.jsdelivr.net/gh/RasmusVraa/starlit-routing@v8/release/geosite.dat
-https://gcore.jsdelivr.net/gh/RasmusVraa/starlit-routing@v8/release/geoip.dat
+https://gcore.jsdelivr.net/gh/RasmusVraa/starlit-routing@v9/release/geosite.dat
+https://gcore.jsdelivr.net/gh/RasmusVraa/starlit-routing@v9/release/geoip.dat
 ```
 
 ## Сборка
